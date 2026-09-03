@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>finalfin.al — prototype v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #e9edf0;
+    --card: #f7f8f6;
+    --ink: #16213a;
+    --ink-soft: #5b6472;
+    --miss: #b3261e;
+    --hit: #3f6b4e;
+    --hit-bg: #e3ecdf;
+    --miss-bg: #f6e2e0;
+    --border: #d3d8db;
+  }
+  * { box-sizing: border-box; }
+
+  /* One font family for the whole document — this is the "correct" state.
+     The only exception is a span the content author deliberately tags
+     type=font, which the renderer intentionally breaks (see JS). */
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Source Serif 4', Georgia, serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .ui { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; }
+
+  header { width: 100%; max-width: 640px; margin-bottom: 16px; }
+  header h1 { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; margin: 0 0 4px; }
+  header p { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+
+  .loadrow {
+    width: 100%; max-width: 640px;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft);
+  }
+  .loadrow button {
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    background: transparent; color: var(--ink); border: 1px solid var(--border);
+    border-radius: 3px; padding: 6px 10px; cursor: pointer;
+  }
+  .loadrow button:hover { border-color: var(--ink-soft); }
+
+  .statusbar {
+    width: 100%; max-width: 640px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--ink-soft);
+  }
+  .statusbar strong { color: var(--ink); }
+
+  .stage { width: 100%; max-width: 640px; position: relative; }
+
+  .page {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 36px 40px;
+    box-shadow: 0 1px 2px rgba(22,33,58,0.05);
+    transition: filter 300ms ease;
+  }
+  .page.blurred { filter: blur(7px); }
+
+  .page h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+  .page h3 { font-size: 14px; font-weight: 600; margin: 22px 0 8px; }
+  .page h2:not(:first-child), .page h3:not(:first-child) { margin-top: 26px; }
+  .page p { font-size: 16.5px; line-height: 1.75; margin: 0 0 4px; }
+
+  .list-line { font-size: 15.5px; line-height: 1.85; margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 6px 0; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; }
+
+  /* Error targets are invisible until found or revealed — no hover style,
+     no cursor change, nothing that leaks their location. */
+  .err-target { border-radius: 2px; }
+  .err-target.found { background: var(--hit-bg); color: var(--hit); font-weight: 600; }
+  .err-target.revealed { background: var(--miss-bg); color: var(--miss); text-decoration: underline wavy; }
+
+  /* Begin overlay, shown while the page is blurred */
+  .begin-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    z-index: 5;
+  }
+  .begin-overlay button {
+    font-family: 'IBM Plex Mono', monospace; font-size: 14px;
+    background: var(--ink); color: var(--card); border: none; border-radius: 4px;
+    padding: 12px 28px; cursor: pointer;
+  }
+
+  /* The hit-testing layer: absolutely positioned, filling .page exactly.
+     Individual zones are sized/positioned in JS from measured text rects. */
+  #overlay { position: absolute; inset: 0; }
+  .miss-catcher, .hit-zone { position: absolute; cursor: default; }
+  .miss-catcher { background: transparent; }
+  .hit-zone { background: transparent; }
+
+  .page.shake { animation: shake 220ms; }
+  @keyframes shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+  .result { width: 100%; max-width: 640px; margin-top: 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .result.hidden { display: none; }
+  .result .headline { font-size: 14.5px; font-weight: 500; margin-bottom: 6px; }
+  .result .line { color: var(--ink-soft); margin: 2px 0; }
+  .result .types { margin: 10px 0; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 3px; }
+  .result .types div { display: flex; justify-content: space-between; padding: 2px 0; }
+
+  button.primary {
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    background: var(--ink); color: var(--card); border: none; border-radius: 3px;
+    padding: 9px 16px; cursor: pointer; margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <h1>finalfin.al</h1>
+    <p>2 minutes. Find every tagged inconsistency before time, or your guesses, run out.</p>
+  </header>
+
+  <div class="loadrow">
+    <span id="fileLabel">sample-challenge.md (built-in)</span>
+    <button id="loadBtn">Load challenge (.md)</button>
+    <input type="file" id="fileInput" accept=".md,text/markdown" style="display:none;">
+  </div>
+
+  <div class="statusbar">
+    <span>score <strong id="scoreVal">0</strong></span>
+    <span>found <strong id="foundVal">0</strong>/<strong id="totalVal">0</strong></span>
+    <span>misses <strong id="missVal">0</strong></span>
+    <span id="timeVal">2:00</span>
+  </div>
+
+  <div class="stage">
+    <div class="page blurred" id="page"></div>
+    <div class="begin-overlay ui" id="beginOverlay">
+      <button id="beginBtn">Begin</button>
+    </div>
+  </div>
+
+  <div class="result hidden ui" id="result">
+    <div class="headline" id="resultHeadline"></div>
+    <div class="line" id="resultScore"></div>
+    <div class="types" id="resultTypes"></div>
+    <button class="primary" id="resetBtn">Play again</button>
+  </div>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const TIME_LIMIT = 120;          // seconds
+const POINTS_PER_FIND = 15;
+const POINTS_PER_MISS = 5;       // subtracted, no cap on how many you can take
+const TIME_BONUS_PER_SECOND = 2; // awarded on a win, for time left on the clock
+const TOLERANCE = 6;             // px of padding around each measured hit zone
+const SPAM_WINDOW_MS = 1500;     // spam = this many clicks...
+const SPAM_CLICK_COUNT = 5;      // ...within this many milliseconds, hit or miss
+
+const ERROR_LABELS = {
+  dash: 'Dash mismatch', currency: 'Currency symbol', quotes: 'Quote mark mismatch',
+  footnote: 'Footnote placement', punctuation: 'Punctuation usage', formatting: 'Bold, italic, or underline misuse',
+  font: 'Font mismatch', sizeSmall: 'Font size mismatch (smaller)', sizeBig: 'Font size mismatch (larger)',
+  'heading-number': 'Section numbering', listnum: 'List numbering',
+  indent: 'Indentation', table: 'Table error'
+};
+
+/* ============================================================
+   MARKDOWN + TAG PARSER
+   Small and scoped on purpose — see chat for why. It understands:
+   headings (#, ##), paragraphs, lists (-, *), tables (| a | b |),
+   bold (**x**), italic (*x*), and three tag forms:
+     token<<ERR:type>>            — attaches to the preceding word
+                                     (this covers heading numbers too — "5."
+                                     is just a token like any other)
+     [[a phrase]]<<ERR:type>>     — attaches to a multi-word span
+     <<ERR:type>> at line start   — attaches to the whole list item
+       (used for indent, where the click area is generous but only the
+       bullet itself highlights — see renderDocument)
+   ============================================================ */
+
+// A tag can optionally carry :id=NAME so multiple separate spans register
+// as ONE logical error (e.g. an opening and closing quote mark that don't
+// match — two small spans, one thing to find). Without :id, each tag is
+// its own independent error, as before.
+const ERR_TAG_RE = /^<<ERR:([a-zA-Z0-9-]+)(?::id=([a-zA-Z0-9_-]+))?>>/;
+
+// Walks one line/cell's text and returns a list of "inline nodes":
+// {text, bold, italic, underline, errorType, errorId}. Same idea as
+// writing a small tokenizer in Python with an index you manually advance.
+function parseInline(text) {
+  const nodes = [];
+  let i = 0, buf = '';
+
+  function flush() {
+    if (buf) { nodes.push({ text: buf, bold: false, italic: false, underline: false, errorType: null, errorId: null }); buf = ''; }
+  }
+  function peekTag() {
+    const m = text.slice(i).match(ERR_TAG_RE);
+    if (m) { i += m[0].length; return { type: m[1], id: m[2] || null }; }
+    return { type: null, id: null };
+  }
+
+  while (i < text.length) {
+    if (text.startsWith('[[', i)) {
+      const end = text.indexOf(']]', i + 2);
+      if (end !== -1) {
+        flush();
+        const span = text.slice(i + 2, end);
+        i = end + 2;
+        const tag = peekTag();
+        // Re-parse the bracket's own contents rather than treating them as
+        // literal text — this is what makes [[_italic phrase_]] render as
+        // actual italics instead of showing the underscores. If a type was
+        // tagged, every piece that comes out of that inner parse shares one
+        // id, so a multi-node result (e.g. plain text + a bold run) still
+        // highlights and counts as a single error.
+        const innerNodes = parseInline(span);
+        if (tag.type) {
+          const sharedId = tag.id || nextId();
+          innerNodes.forEach(sub => {
+            if (!sub.errorType) { sub.errorType = tag.type; sub.errorId = sharedId; }
+          });
+        }
+        nodes.push(...innerNodes);
+        continue;
+      }
+    }
+    // Underline has no standard markdown syntax, so this uses a raw HTML
+    // tag pair — a reasonable custom choice since <u> already means
+    // exactly this. Checked before ** / * so it isn't mistaken for text.
+    if (text.startsWith('<u>', i)) {
+      const end = text.indexOf('</u>', i + 3);
+      if (end !== -1) {
+        flush();
+        const inner = text.slice(i + 3, end);
+        i = end + 4;
+        const tag = peekTag();
+        nodes.push({ text: inner, bold: false, italic: false, underline: true, errorType: tag.type, errorId: tag.id });
+        continue;
+      }
+    }
+    if (text.startsWith('**', i)) {
+      const end = text.indexOf('**', i + 2);
+      if (end !== -1) {
+        flush();
+        const inner = text.slice(i + 2, end);
+        i = end + 2;
+        const tag = peekTag();
+        nodes.push({ text: inner, bold: true, italic: false, underline: false, errorType: tag.type, errorId: tag.id });
+        continue;
+      }
+    }
+    // Single asterisk OR single underscore both mean italic — the same
+    // two spellings CommonMark accepts, so *word* and _word_ behave the
+    // same way here.
+    if (text[i] === '*' || text[i] === '_') {
+      const marker = text[i];
+      const end = text.indexOf(marker, i + 1);
+      if (end !== -1) {
+        flush();
+        const inner = text.slice(i + 1, end);
+        i = end + 1;
+        const tag = peekTag();
+        nodes.push({ text: inner, bold: false, italic: true, underline: false, errorType: tag.type, errorId: tag.id });
+        continue;
+      }
+    }
+    if (text.startsWith('<<ERR:', i)) {
+      const m = text.slice(i).match(ERR_TAG_RE);
+      if (m) {
+        const tm = buf.match(/(\S+)$/);
+        if (tm) {
+          const token = tm[1];
+          const before = buf.slice(0, buf.length - token.length);
+          if (before) nodes.push({ text: before, bold: false, italic: false, underline: false, errorType: null, errorId: null });
+          nodes.push({ text: token, bold: false, italic: false, underline: false, errorType: m[1], errorId: m[2] || null });
+          buf = '';
+        }
+        i += m[0].length;
+        continue;
+      }
+    }
+    buf += text[i]; i++;
+  }
+  flush();
+  return nodes;
+}
+
+function parseDocument(src) {
+  // Strip <!-- ... --> blocks before anything else, so authoring notes
+  // never show up as playable text. Standard markdown convention, so
+  // this file also previews correctly in any normal markdown viewer.
+  src = src.replace(/<!--[\s\S]*?-->/g, '');
+  const lines = src.replace(/\r\n/g, '\n').split('\n');
+  const blocks = [];
+  let i = 0;
+  const isBlank = l => l.trim() === '';
+  const isTable = l => l.trim().startsWith('|');
+  const headingRe = /^(#{1,3})\s+(.*)$/;
+  // Marker is a bullet (-, *, •) OR a number like "1." / "2)" — the number
+  // is kept and rendered exactly as typed (not auto-renumbered), since a
+  // wrong number is how a numbering error gets planted. The tag sits right
+  // after the marker, not at the very start of the line.
+  const listRe = /^\s*([-*•]|\d+[.)])\s*(<<ERR:([a-zA-Z0-9-]+)>>)?\s+(.*)$/;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (isBlank(line)) { i++; continue; }
+
+    if (isTable(line)) {
+      const rows = [];
+      while (i < lines.length && isTable(lines[i])) { rows.push(lines[i]); i++; }
+      const cells = rows
+        .map(r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()))
+        .filter(r => !r.every(c => /^-+$/.test(c))); // drop the --- separator row
+      blocks.push({ type: 'table', header: cells[0], rows: cells.slice(1) });
+      continue;
+    }
+
+    const h = line.match(headingRe);
+    if (h) {
+      blocks.push({ type: 'heading', level: h[1].length, inline: parseInline(h[2]) });
+      i++; continue;
+    }
+
+    const l0 = line.match(listRe);
+    if (l0) {
+      const items = [];
+      while (i < lines.length) {
+        const m = lines[i].match(listRe);
+        if (!m) break;
+        items.push({ marker: m[1], lineError: m[3] || null, inline: parseInline(m[4]) });
+        i++;
+      }
+      blocks.push({ type: 'list', items });
+      continue;
+    }
+
+    const para = [];
+    while (i < lines.length && !isBlank(lines[i]) && !isTable(lines[i]) && !headingRe.test(lines[i]) && !listRe.test(lines[i])) {
+      para.push(lines[i]); i++;
+    }
+    blocks.push({ type: 'paragraph', inline: parseInline(para.join(' ')) });
+  }
+  return blocks;
+}
+
+/* ============================================================
+   RENDERING
+   Every tagged node/line gets a sequential id and is registered
+   in errorRegistry so the overlay engine knows what to measure.
+   ============================================================ */
+let errorRegistry = {};
+let errorCounter = 0;
+
+function nextId() { return 'e' + (++errorCounter); }
+
+// Registers one tagged element against an error. If explicitId is given
+// and already exists, this element joins that error's existing spans
+// instead of creating a new one — that's how two separate quote-mark
+// spans become one findable error.
+function registerError(type, explicitId, el) {
+  const id = explicitId || nextId();
+  if (errorRegistry[id]) {
+    errorRegistry[id].highlightEls.push(el);
+    errorRegistry[id].hitEls.push(el);
+  } else {
+    errorRegistry[id] = { type, found: false, highlightEls: [el], hitEls: [el] };
+  }
+  return id;
+}
+
+function renderInline(nodes, parent) {
+  nodes.forEach(n => {
+    let el;
+    if (n.bold) el = document.createElement('strong');
+    else if (n.italic) el = document.createElement('em');
+    else el = document.createElement('span');
+    el.textContent = n.text;
+    if (n.underline) el.style.textDecoration = 'underline';
+    if (n.errorType) {
+      el.classList.add('err-target');
+      const id = registerError(n.errorType, n.errorId, el);
+      el.dataset.errorId = id;
+      if (n.errorType === 'font') el.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      if (n.errorType === 'sizeSmall') el.style.fontSize = '0.85em'; // -15%
+      if (n.errorType === 'sizeBig') el.style.fontSize = '1.15em';   // +15%
+    }
+    parent.appendChild(el);
+  });
+}
+
+function renderDocument(blocks, container) {
+  container.innerHTML = '';
+
+  blocks.forEach(b => {
+    if (b.type === 'heading') {
+      const el = document.createElement(b.level === 1 ? 'h2' : 'h3');
+      renderInline(b.inline, el);
+      container.appendChild(el);
+    } else if (b.type === 'paragraph') {
+      const el = document.createElement('p');
+      renderInline(b.inline, el);
+      container.appendChild(el);
+    } else if (b.type === 'list') {
+      const wrap = document.createElement('div');
+      b.items.forEach(item => {
+        const line = document.createElement('div');
+        line.className = 'list-line';
+        const marker = document.createElement('span');
+        const isNumbered = /^\d+[.)]$/.test(item.marker);
+        marker.textContent = (isNumbered ? item.marker : '•') + ' ';
+        if (item.lineError) {
+          line.appendChild(marker);
+          renderInline(item.inline, line);
+          const id = nextId();
+          marker.classList.add('err-target');
+          marker.dataset.errorId = id;
+          if (item.lineError === 'indent') line.style.marginLeft = '34px';
+          // Highlight is scoped to just the marker; the click zone stays
+          // the whole line, since that's what a player will reasonably
+          // click, whether the tell is a shift or a bad number.
+          errorRegistry[id] = { type: item.lineError, found: false, highlightEls: [marker], hitEls: [line] };
+        } else {
+          line.appendChild(marker);
+          renderInline(item.inline, line);
+        }
+        wrap.appendChild(line);
+      });
+      container.appendChild(wrap);
+    } else if (b.type === 'table') {
+      const table = document.createElement('table');
+      const thead = document.createElement('tr');
+      b.header.forEach(c => {
+        const th = document.createElement('th');
+        renderInline(parseInline(c), th);
+        thead.appendChild(th);
+      });
+      table.appendChild(thead);
+      b.rows.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(c => {
+          const td = document.createElement('td');
+          renderInline(parseInline(c), td);
+          tr.appendChild(td);
+        });
+        table.appendChild(tr);
+      });
+      container.appendChild(table);
+    }
+  });
+}
+
+/* ============================================================
+   OVERLAY — the resolution-independent hit-testing layer.
+   Never authored as fixed coordinates: every zone is measured
+   from the live rendered position of its text, so it stays
+   correctly aligned no matter the screen width or zoom level.
+   ============================================================ */
+const page = document.getElementById('page');
+let overlayEl = null;
+
+function ensureOverlay() {
+  if (overlayEl) overlayEl.remove();
+  overlayEl = document.createElement('div');
+  overlayEl.id = 'overlay';
+  page.appendChild(overlayEl);
+  return overlayEl;
+}
+
+function recomputeOverlay() {
+  const ov = ensureOverlay();
+  const pageRect = page.getBoundingClientRect();
+
+  // Bottom layer: anywhere that isn't a valid hit zone counts as a miss.
+  const missCatcher = document.createElement('div');
+  missCatcher.className = 'miss-catcher';
+  missCatcher.style.left = '0'; missCatcher.style.top = '0';
+  missCatcher.style.width = pageRect.width + 'px';
+  missCatcher.style.height = page.scrollHeight + 'px';
+  missCatcher.addEventListener('click', () => handleGuess(null));
+  ov.appendChild(missCatcher);
+
+  // Top layer: one zone per measured rect (a tagged span can wrap
+  // across lines, so getClientRects() may return more than one).
+  Object.entries(errorRegistry).forEach(([id, entry]) => {
+    entry.hitEls.forEach(el => {
+      const rects = el.getClientRects();
+      Array.from(rects).forEach(r => {
+        const zone = document.createElement('div');
+        zone.className = 'hit-zone';
+        zone.style.left = (r.left - pageRect.left - TOLERANCE) + 'px';
+        zone.style.top = (r.top - pageRect.top - TOLERANCE) + 'px';
+        zone.style.width = (r.width + TOLERANCE * 2) + 'px';
+        zone.style.height = (r.height + TOLERANCE * 2) + 'px';
+        zone.addEventListener('click', () => handleGuess(id));
+        ov.appendChild(zone);
+      });
+    });
+  });
+}
+
+let resizeHandle;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeHandle);
+  resizeHandle = setTimeout(recomputeOverlay, 150);
+});
+
+/* ============================================================
+   GAME STATE
+   ============================================================ */
+let totalErrors = 0, foundCount = 0, missCount = 0, score = 0, timeLeft = TIME_LIMIT;
+let gameOver = true, started = false, timerHandle = null;
+let clickTimestamps = []; // rolling window, used only to detect spam-clicking
+
+function updateStatus() {
+  document.getElementById('scoreVal').textContent = score;
+  document.getElementById('foundVal').textContent = foundCount;
+  document.getElementById('totalVal').textContent = totalErrors;
+  document.getElementById('missVal').textContent = missCount;
+  const m = Math.floor(Math.max(timeLeft, 0) / 60), s = Math.max(timeLeft, 0) % 60;
+  document.getElementById('timeVal').textContent = m + ':' + String(s).padStart(2, '0');
+}
+
+function handleGuess(id) {
+  if (gameOver || !started) return;
+  if (id && errorRegistry[id].found) return; // already found — no-op, no penalty
+
+  // Spam detection is about click RATE, not about being wrong. A thoughtful
+  // wrong guess costs points but never ends the game on its own; only
+  // clicking fast enough to look like spamming does.
+  const now = Date.now();
+  clickTimestamps.push(now);
+  clickTimestamps = clickTimestamps.filter(t => now - t <= SPAM_WINDOW_MS);
+  if (clickTimestamps.length >= SPAM_CLICK_COUNT) { endGame('lockout'); return; }
+
+  if (id) {
+    errorRegistry[id].found = true;
+    errorRegistry[id].highlightEls.forEach(el => el.classList.add('found'));
+    foundCount++; score += POINTS_PER_FIND;
+  } else {
+    score -= POINTS_PER_MISS; missCount++;
+    page.classList.remove('shake'); void page.offsetWidth; page.classList.add('shake');
+  }
+  updateStatus();
+
+  if (foundCount === totalErrors) endGame('win');
+}
+
+function endGame(reason) {
+  gameOver = true;
+  clearInterval(timerHandle);
+  Object.values(errorRegistry).forEach(e => {
+    if (!e.found) e.highlightEls.forEach(el => el.classList.add('revealed'));
+  });
+
+  let bonus = 0;
+  if (reason === 'win') { bonus = timeLeft * TIME_BONUS_PER_SECOND; score += bonus; }
+
+  const headline = { win: 'Solved it', timeout: "Time's up", lockout: 'Slow down — that was too fast' }[reason];
+  document.getElementById('resultHeadline').textContent = headline;
+  const parts = [
+    `${foundCount}/${totalErrors} found (+${foundCount * POINTS_PER_FIND})`,
+    `${missCount} miss${missCount === 1 ? '' : 'es'} (-${missCount * POINTS_PER_MISS})`
+  ];
+  if (bonus) parts.push(`+${bonus} time bonus`);
+  parts.push(`final score ${score}`);
+  document.getElementById('resultScore').textContent = parts.join(' · ');
+
+  const typesEl = document.getElementById('resultTypes');
+  typesEl.innerHTML = '';
+  Object.values(errorRegistry).forEach(e => {
+    const row = document.createElement('div');
+    const label = ERROR_LABELS[e.type] || e.type;
+    row.innerHTML = `<span>${label}</span><span style="color:${e.found ? 'var(--hit)' : 'var(--miss)'}">${e.found ? 'found' : 'missed'}</span>`;
+    typesEl.appendChild(row);
+  });
+
+  document.getElementById('result').classList.remove('hidden');
+  updateStatus();
+}
+
+function startTimer() {
+  clearInterval(timerHandle); // never let two intervals run at once
+  timerHandle = setInterval(() => {
+    timeLeft--;
+    updateStatus();
+    if (timeLeft <= 0) endGame('timeout');
+  }, 1000);
+}
+
+/* ============================================================
+   LOAD / RESET
+   ============================================================ */
+function loadChallenge(markdownText) {
+  // A previous countdown may still be running if this fires mid-game (e.g.
+  // loading a new .md file before the current one finished) — clear it or
+  // it keeps ticking in the background, invisibly stacking with any later
+  // timer and draining time faster than 1 second per second.
+  clearInterval(timerHandle);
+
+  // Reset once, before parsing — parseDocument can now itself call nextId()
+  // (for bracket spans with formatting inside them), and renderDocument
+  // calls it again afterwards for everything else. Both need to share one
+  // uninterrupted counter; resetting it between the two would let a
+  // parse-time id and a render-time id collide on the same number.
+  errorRegistry = {};
+  errorCounter = 0;
+
+  const blocks = parseDocument(markdownText);
+  renderDocument(blocks, page);
+  totalErrors = Object.keys(errorRegistry).length;
+  foundCount = 0; missCount = 0; score = 0; timeLeft = TIME_LIMIT; gameOver = false; started = false;
+  clickTimestamps = [];
+
+  page.classList.add('blurred');
+  document.getElementById('beginOverlay').style.display = 'flex';
+  document.getElementById('result').classList.add('hidden');
+
+  document.fonts.ready.then(recomputeOverlay);
+  recomputeOverlay();
+  updateStatus();
+}
+
+let currentMarkdown = null;
+
+document.getElementById('beginBtn').addEventListener('click', () => {
+  page.classList.remove('blurred');
+  document.getElementById('beginOverlay').style.display = 'none';
+  started = true;
+  recomputeOverlay();
+  startTimer();
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => loadChallenge(currentMarkdown));
+
+document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    currentMarkdown = reader.result;
+    document.getElementById('fileLabel').textContent = file.name;
+    loadChallenge(currentMarkdown);
+  };
+  reader.readAsText(file);
+});
+
+/* Built-in default so the file works the moment it's opened, with
+   no picker step required. Load a different .md any time via the
+   button above — this mirrors sample-challenge.md provided alongside. */
+const DEFAULT_MARKDOWN = `<!--
+  finalfin.al — challenge file format
+  ====================================
+  This whole block is an HTML comment, and it's stripped before the
+  game parses the file — so it's safe to leave authoring notes here,
+  they never show up during play. Standard markdown comment
+  convention, so this file also previews correctly in an ordinary
+  markdown viewer. (One rule worth knowing: don't write the literal
+  open/close comment characters inside a comment's own body text —
+  the stripper closes on the first one it finds, so a comment that
+  mentions its own delimiters truncates itself early.)
+
+  ERROR TYPES CURRENTLY IN USE IN THIS FILE
+  ------------------------------------------
+  dash            em dash vs en dash — needs a correct example nearby for contrast
+  currency        wrong currency symbol — needs a correct example nearby for contrast
+  quotes          mismatched open/close quote marks — self-evident on its own (see grouping below)
+  footnote        footnote marker on the wrong side of a full stop — needs a correct example nearby
+  punctuation     wrong mark for the sentence, e.g. colon instead of semicolon
+  formatting      bold or italic applied somewhere it shouldn't be
+  font            wrong font on a span — renderer applies this automatically
+  sizeSmall       text 15% smaller than its context — renderer applies this automatically
+  sizeBig         text 15% larger than its context — renderer applies this automatically
+  heading-number  wrong number in a section heading
+  indent          list item visually out of alignment with its siblings
+
+  Defined but not used in this file yet: listnum, table. Type names are
+  free text, not a fixed enum — invent new ones as needed. Only font,
+  sizeSmall, and sizeBig get automatic visual styling; every other type
+  is just a label shown in the results screen unless you add a
+  rendering rule for it in renderInline() in the HTML file.
+
+  MARKDOWN SUPPORTED
+  ------------------------------------------
+  # / ##          headings
+  - or *          bullet list items (always display as •, regardless of
+                   which of - * • you typed)
+  1. or 1)        numbered list items — rendered exactly as typed, not
+                   auto-renumbered, so a deliberately wrong number stays
+                   visible (that's how a listnum error gets planted)
+  | a | b |       tables
+  **bold**        bold
+  *italic* or _italic_   italic (either spelling works)
+  <u>underline</u>       underline (no standard markdown syntax for this,
+                          so it borrows the real HTML tag)
+  Nothing else — no links, no images, no blockquotes. Bracketed spans
+  ([[ ]]) DO fully parse their own contents, so [[_a phrase_]] or
+  [[**a phrase**]] render as real italic/bold, not literal punctuation —
+  what's still not supported is nesting one emphasis marker directly
+  inside another with no brackets at all (e.g. **_both_** with nothing
+  wrapping it). Keep authored content to this subset.
+
+  TAG SYNTAX — three ways to mark an error
+  ------------------------------------------
+  1. Single token — tags the word immediately before the tag, no space
+     between them:
+       US$2,800<<ERR:currency>>
+     This grabs the WHOLE non-whitespace run before the tag. "US$2,800"
+     has no internal space, so all of it gets tagged and highlighted —
+     use the bracket form below if you need only part of a token.
+
+  2. Bracketed span — tags exactly what's between [[ ]], including
+     multi-word phrases or a single punctuation mark fused to
+     neighbouring text with no space to anchor a single-token tag:
+       [[US$]]<<ERR:currency>>2,800        (only "US$" highlights)
+       writing[[:]]<<ERR:punctuation>>     (only ":" highlights)
+
+  3. After the marker, list items only — tags the whole line as a
+     structural error, whether or not there's a space before the tag.
+     Used for indent and listnum: the click area is the whole line,
+     but only the marker highlights.
+       -<<ERR:indent>> Electronic notice is permitted...
+       5.<<ERR:listnum>> Client sign-off...
+
+  GROUPING TWO SPANS INTO ONE ERROR
+  ------------------------------------------
+  Add :id=NAME to link separate tags into a single findable error.
+  Used below for the mismatched quote pair, since the opening and
+  closing marks aren't next to each other:
+       [[“]]<<ERR:quotes:id=q1>>Confidential Information[["]]<<ERR:quotes:id=q1>>
+  Clicking either mark highlights both, and it only counts once
+  toward the total error count.
+-->
+
+# Notice of Amendment — Consulting Agreement
+
+## 1. Background
+
+This Amendment is entered into by the parties for the purpose of updating certain terms under the original Consulting Agreement dated 14 March 2024. The revised fee schedule reflects current<<ERR:sizeBig>> market rates and shall take effect on the Effective Date –<<ERR:dash>> as defined in Section 3 below — unless otherwise agreed in writing.
+
+## 2. Revised Fees
+
+| Service | Rate | Notes |
+| --- | --- | --- |
+| Strategy review | S$4,500 | Billed monthly |
+| Implementation support | S$2,800 | Billed monthly |
+| Ad-hoc advisory | [[US$]]<<ERR:currency>>2,800 | Billed hourly |
+
+## 5.<<ERR:heading-number>> Term and Termination
+
+Either party may terminate this arrangement upon thirty (30) days' written notice. The parties agree that the term [[“]]<<ERR:quotes:id=q1>>Confidential Information[["]]<<ERR:quotes:id=q1>> shall retain the meaning given to it in the [[original Agreement]]<<ERR:font>>, in contrast to the defined term “Effective Date,” which appears throughout. All confidentiality obligations survive termination¹<<ERR:footnote>>. Notice must be delivered in writing[[:]]<<ERR:punctuation>> electronic delivery is acceptable, provided delivery is confirmed in writing by the recipient.²
+
+## 4. Notice Requirements
+
+- Notice must be delivered to the address on file.
+- Notice is deemed received three (3) business days after mailing.
+-<<ERR:indent>> Electronic notice is permitted if confirmed in writing.
+- The invoice [[_must be paid promptly_]]<<ERR:formatting>> to avoid penalties.
+`;
+
+currentMarkdown = DEFAULT_MARKDOWN;
+loadChallenge(currentMarkdown);
+</script>
+</body>
+</html>
