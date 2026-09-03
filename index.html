@@ -153,6 +153,10 @@
     <div class="line" id="resultScore"></div>
     <div class="types" id="resultTypes"></div>
     <button class="primary" id="resetBtn">Play again</button>
+    <div class="line" id="dailyNote" style="display:none; margin-top:10px;">
+      Today's puzzle is done — come back tomorrow for the next one.
+      <a href="#" id="devResetLink" style="color:var(--ink-soft);">(reset today's result — testing only)</a>
+    </div>
   </div>
 
 <script>
@@ -523,6 +527,8 @@ window.addEventListener('resize', () => {
 let totalErrors = 0, foundCount = 0, missCount = 0, score = 0, timeLeft = TIME_LIMIT;
 let gameOver = true, started = false, timerHandle = null;
 let clickTimestamps = []; // rolling window, used only to detect spam-clicking
+let isDailyMode = false;     // true = the auto-loaded, once-per-day puzzle
+let currentPuzzleDate = null; // the date key this session's puzzle is filed under
 
 function updateStatus() {
   document.getElementById('scoreVal').textContent = score;
@@ -558,16 +564,10 @@ function handleGuess(id) {
   if (foundCount === totalErrors) endGame('win');
 }
 
-function endGame(reason) {
-  gameOver = true;
-  clearInterval(timerHandle);
-  Object.values(errorRegistry).forEach(e => {
-    if (!e.found) e.highlightEls.forEach(el => el.classList.add('revealed'));
-  });
-
-  let bonus = 0;
-  if (reason === 'win') { bonus = timeLeft * TIME_BONUS_PER_SECOND; score += bonus; }
-
+// Renders the result panel from whatever the current state variables say —
+// used both right after a live game ends AND when re-displaying a stored
+// completion on a later visit, so the two never drift out of sync.
+function buildResultUI(reason, bonus) {
   const headline = { win: 'Solved it', timeout: "Time's up", lockout: 'Slow down — that was too fast' }[reason];
   document.getElementById('resultHeadline').textContent = headline;
   const parts = [
@@ -587,8 +587,31 @@ function endGame(reason) {
     typesEl.appendChild(row);
   });
 
+  // Daily puzzles get one attempt — no replay button, just a note. Manually
+  // loaded test files (isDailyMode false) keep full replay for testing.
+  document.getElementById('resetBtn').style.display = isDailyMode ? 'none' : '';
+  document.getElementById('dailyNote').style.display = isDailyMode ? 'block' : 'none';
+
   document.getElementById('result').classList.remove('hidden');
   updateStatus();
+}
+
+function endGame(reason) {
+  gameOver = true;
+  clearInterval(timerHandle);
+  Object.values(errorRegistry).forEach(e => {
+    if (!e.found) e.highlightEls.forEach(el => el.classList.add('revealed'));
+  });
+
+  let bonus = 0;
+  if (reason === 'win') { bonus = timeLeft * TIME_BONUS_PER_SECOND; score += bonus; }
+
+  buildResultUI(reason, bonus);
+
+  if (isDailyMode && currentPuzzleDate) {
+    const foundIds = Object.entries(errorRegistry).filter(([, e]) => e.found).map(([id]) => id);
+    saveCompletion(currentPuzzleDate, { reason, score, foundCount, totalErrors, missCount, bonus, foundIds, completedAt: Date.now() });
+  }
 }
 
 function startTimer() {
@@ -601,8 +624,108 @@ function startTimer() {
 }
 
 /* ============================================================
-   LOAD / RESET
+   DAILY PUZZLE — storage, file splitting, date resolution
    ============================================================ */
+const STORAGE_PREFIX = 'finalfinal:completed:';
+
+function saveCompletion(date, record) {
+  try { localStorage.setItem(STORAGE_PREFIX + date, JSON.stringify(record)); }
+  catch (e) { console.warn('Could not save today\'s result (localStorage unavailable):', e); }
+}
+function loadCompletion(date) {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + date);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+// Local date, not UTC — "today" should match the player's own calendar day,
+// not flip over at UTC midnight while it's still evening for them.
+function getTodayDateString() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Splits a multi-puzzle file on <<PUZZLE:YYYY-MM-DD>> markers into
+// { "2026-09-03": "...markdown for that day...", ... }. A file with no
+// markers at all is treated as one single puzzle, so an old single-puzzle
+// test file still loads without needing to be rewritten.
+function splitPuzzles(rawText) {
+  const re = /<<PUZZLE:(\d{4}-\d{2}-\d{2})>>/g;
+  const matches = [];
+  let m;
+  while ((m = re.exec(rawText)) !== null) matches.push({ date: m[1], start: m.index, contentStart: m.index + m[0].length });
+  if (matches.length === 0) return { __single: rawText };
+  const puzzles = {};
+  matches.forEach((mt, idx) => {
+    const sliceEnd = idx + 1 < matches.length ? matches[idx + 1].start : rawText.length;
+    puzzles[mt.date] = rawText.slice(mt.contentStart, sliceEnd);
+  });
+  return puzzles;
+}
+
+// Exact match wins. Otherwise the most recent date at or before today (so
+// today's file just hasn't been split into a new entry yet still shows the
+// latest available puzzle). Otherwise, everything's in the future — show
+// the earliest one so there's always something to play.
+function pickPuzzleDate(puzzles, todayStr) {
+  const dates = Object.keys(puzzles);
+  if (dates.length === 1 && dates[0] === '__single') return '__single';
+  const sorted = dates.slice().sort();
+  if (sorted.includes(todayStr)) return todayStr;
+  const past = sorted.filter(d => d <= todayStr);
+  return past.length ? past[past.length - 1] : sorted[0];
+}
+
+// Re-displays a stored completion without re-playing: parses and renders
+// the puzzle as usual, then marks the same errors found/revealed that were
+// found/revealed originally, and shows the result panel from the saved
+// numbers rather than live state.
+function showReviewFromStorage(record) {
+  gameOver = true; started = false;
+  foundCount = record.foundCount; missCount = record.missCount; score = record.score;
+  record.foundIds.forEach(id => {
+    if (errorRegistry[id]) { errorRegistry[id].found = true; errorRegistry[id].highlightEls.forEach(el => el.classList.add('found')); }
+  });
+  Object.values(errorRegistry).forEach(e => {
+    if (!e.found) e.highlightEls.forEach(el => el.classList.add('revealed'));
+  });
+  page.classList.remove('blurred');
+  document.getElementById('beginOverlay').style.display = 'none';
+  buildResultUI(record.reason, record.bonus);
+}
+
+async function initDailyPuzzle() {
+  const params = new URLSearchParams(window.location.search);
+  const todayStr = params.get('date') || getTodayDateString(); // ?date= override for testing other days
+
+  let puzzles;
+  try {
+    const res = await fetch('puzzles.md');
+    if (!res.ok) throw new Error('puzzles.md not found');
+    puzzles = splitPuzzles(await res.text());
+  } catch (e) {
+    // Expected when opened directly as a local file (file:// blocks fetch
+    // entirely) or when puzzles.md isn't sitting next to this HTML file.
+    // Falls back to the built-in single puzzle so daily-mode is still
+    // fully testable without real hosting.
+    puzzles = { __single: DEFAULT_MARKDOWN };
+  }
+
+  const pickedDate = pickPuzzleDate(puzzles, todayStr);
+  currentPuzzleDate = pickedDate === '__single' ? todayStr : pickedDate;
+  isDailyMode = true;
+  document.getElementById('fileLabel').textContent =
+    pickedDate === '__single' ? 'built-in puzzle (puzzles.md not found)' : `puzzles.md — ${pickedDate}`;
+
+  loadChallenge(puzzles[pickedDate]);
+  currentMarkdown = puzzles[pickedDate];
+
+  const record = loadCompletion(currentPuzzleDate);
+  if (record) showReviewFromStorage(record);
+}
+
+
 function loadChallenge(markdownText) {
   // A previous countdown may still be running if this fires mid-game (e.g.
   // loading a new .md file before the current one finished) — clear it or
@@ -651,11 +774,18 @@ document.getElementById('fileInput').addEventListener('change', e => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
+    isDailyMode = false; // manual loads are always testing/free-play, never locked
     currentMarkdown = reader.result;
     document.getElementById('fileLabel').textContent = file.name;
     loadChallenge(currentMarkdown);
   };
   reader.readAsText(file);
+});
+
+document.getElementById('devResetLink').addEventListener('click', e => {
+  e.preventDefault();
+  if (currentPuzzleDate) localStorage.removeItem(STORAGE_PREFIX + currentPuzzleDate);
+  location.reload();
 });
 
 /* Built-in default so the file works the moment it's opened, with
@@ -771,8 +901,7 @@ Either party may terminate this arrangement upon thirty (30) days' written notic
 - The invoice [[_must be paid promptly_]]<<ERR:formatting>> to avoid penalties.
 `;
 
-currentMarkdown = DEFAULT_MARKDOWN;
-loadChallenge(currentMarkdown);
+initDailyPuzzle();
 </script>
 </body>
 </html>
