@@ -32,6 +32,29 @@ The vendor confirmed delivery for [[Q3]]<<ERR:font>> and pricing remains at S$1,
 
 <<PUZZLE:05-09-2026>>
 
+# SHARE SALE AGREEMENT
+
+This **Agreement** is made on 5 September 2026 between:
+
+(1) **KYLIAN LIM SWEE KIN** (NRIC Number: T0542148K) of 27 Temasek Boulevard Singapore 182004 (Email: kylianlimsk@hmail.com)[[:]]<<ERR:punctuation>>  
+
+and asdasdasdasda
+
+(1)<<ERR:heading-number>> **RUPERT WONG E-JIE** (NRIC Number: T0246283B) of 9A Ang Mu Tio Ave, #17-202 Mu Tio View, Singapore 183009 (Email: rwongej@ymail.com);  
+
+(collectively known as the "**Sellers**", and each a "**Seller**");
+
+(3) **CHRISTOPHER BOON TECK WEE** (NRIC NUMBER: S9271723K) of Blk 3B Roon Gong Ave, #02-10 Roon Gong Heights, Singapore [[214003]]<<ERR:font>> (Email:chrisbtw85@yotmail.com) (the "**Buyer**");  
+
+## PREAMBLE:
+A. The Sellers are the legal and equitable owners of the issued and fully paid-up shares of the Company, a Singapore private exempt company limited by shares, as defined below.
+
+B. The Company has an issued and paid up capital of S$650,000<<ERR:sizeSmall>> comprising 650000<<ERR:punctuation>> ordinary shares presently held and owned by the Sellers.
+
+C. The Buyer wishes to purchase, and the Sellers wish to sell, the Sale Shares subject to the terms and conditions of this Agreement.
+
+<<PUZZLE:06-09-2026>>
+
 # Notice of Amendment — Consulting Agreement
 
 ## 1. Background
