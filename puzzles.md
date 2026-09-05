@@ -30,7 +30,7 @@
 
 The vendor confirmed delivery for [[Q3]]<<ERR:font>> and pricing remains at S$1,200 per unit[[,]]<<ERR:punctuation>> with the balance due on receipt.
 
-<<PUZZLE:03-09-2026>>
+<<PUZZLE:05-09-2026>>
 
 # Notice of Amendment — Consulting Agreement
 
@@ -57,7 +57,7 @@ Either party may terminate this arrangement upon thirty (30) days' written notic
 -<<ERR:indent>> Electronic notice is permitted if confirmed in writing.
 - The invoice [[_must be paid promptly_]]<<ERR:formatting>> to avoid penalties.
 
-<<PUZZLE:05-09-2026>>
+<<PUZZLE:20-09-2026>>
 
 # Client Onboarding Checklist
 
