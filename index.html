@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>finalfin.al — prototype v2</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --paper: #e9edf0;
@@ -19,32 +18,32 @@
   }
   * { box-sizing: border-box; }
 
-  /* One font family for the whole document — this is the "correct" state.
-     The only exception is a span the content author deliberately tags
-     type=font, which the renderer intentionally breaks (see JS). */
+  /* One font family for the whole site — this is the "correct" state.
+     The only exception is a document span the content author deliberately
+     tags type=font, which the renderer intentionally breaks to Times New
+     Roman (see JS) — everything else, in-game and out, inherits this. */
   body {
     margin: 0;
     padding: 40px 20px 80px;
     background: var(--paper);
     color: var(--ink);
-    font-family: 'Source Serif 4', Georgia, serif;
+    font-family: Arial, Helvetica, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
   }
-  .ui { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; }
 
   header { width: 100%; max-width: 640px; margin-bottom: 16px; }
-  header h1 { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; margin: 0 0 4px; }
-  header p { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+  header h1 { font-size: 15px; font-weight: 500; margin: 0 0 4px; }
+  header p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
 
   .loadrow {
     width: 100%; max-width: 640px;
     display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
-    font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft);
+    font-size: 12px; color: var(--ink-soft);
   }
   .loadrow button {
-    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    font-size: 12px;
     background: transparent; color: var(--ink); border: 1px solid var(--border);
     border-radius: 3px; padding: 6px 10px; cursor: pointer;
   }
@@ -53,7 +52,7 @@
   .statusbar {
     width: 100%; max-width: 640px;
     display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--ink-soft);
+    margin-bottom: 12px; font-size: 13px; color: var(--ink-soft);
   }
   .statusbar strong { color: var(--ink); }
 
@@ -73,11 +72,14 @@
   .page h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
   .page h3 { font-size: 14px; font-weight: 600; margin: 22px 0 8px; }
   .page h2:not(:first-child), .page h3:not(:first-child) { margin-top: 26px; }
-  .page p { font-size: 16.5px; line-height: 1.75; margin: 0 0 4px; }
+  /* pre-line: a single line break in the source now renders as an actual
+     line break instead of collapsing to a space; still wraps normally. */
+  .page p { font-size: 16.5px; line-height: 1.75; margin: 0 0 18px; white-space: pre-line; }
 
   .list-line { font-size: 15.5px; line-height: 1.85; margin: 2px 0; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 6px 0; }
-  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th { font-weight: 600; }
 
   /* Error targets are invisible until found or revealed — no hover style,
@@ -92,7 +94,7 @@
     z-index: 5;
   }
   .begin-overlay button {
-    font-family: 'IBM Plex Mono', monospace; font-size: 14px;
+    font-size: 14px;
     background: var(--ink); color: var(--card); border: none; border-radius: 4px;
     padding: 12px 28px; cursor: pointer;
   }
@@ -107,7 +109,7 @@
   .page.shake { animation: shake 220ms; }
   @keyframes shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 
-  .result { width: 100%; max-width: 640px; margin-top: 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .result { width: 100%; max-width: 640px; margin-top: 18px; font-size: 13px; }
   .result.hidden { display: none; }
   .result .headline { font-size: 14.5px; font-weight: 500; margin-bottom: 6px; }
   .result .line { color: var(--ink-soft); margin: 2px 0; }
@@ -115,9 +117,24 @@
   .result .types div { display: flex; justify-content: space-between; padding: 2px 0; }
 
   button.primary {
-    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    font-size: 13px;
     background: var(--ink); color: var(--card); border: none; border-radius: 3px;
     padding: 9px 16px; cursor: pointer; margin-top: 10px;
+  }
+
+  /* Mobile pass. The desktop layout already scales down via max-width and
+     percentage widths — this tier exists specifically for the things that
+     don't shrink gracefully on their own: fixed padding that eats too much
+     of a narrow screen, a 4-item flex row with no room to breathe, and
+     tables, which never handle narrow containers well on their own. */
+  @media (max-width: 480px) {
+    body { padding: 20px 12px 50px; }
+    .page { padding: 22px 18px; }
+    .statusbar { flex-wrap: wrap; row-gap: 6px; font-size: 12px; }
+    .loadrow { flex-wrap: wrap; row-gap: 8px; }
+    #fileLabel { flex: 1 1 100%; }
+    table, .list-line { font-size: 14px; }
+    th, td { padding: 6px 8px; }
   }
 </style>
 </head>
@@ -167,7 +184,11 @@ const TIME_LIMIT = 120;          // seconds
 const POINTS_PER_FIND = 15;
 const POINTS_PER_MISS = 5;       // subtracted, no cap on how many you can take
 const TIME_BONUS_PER_SECOND = 2; // awarded on a win, for time left on the clock
-const TOLERANCE = 6;             // px of padding around each measured hit zone
+// A mouse can click precisely; a fingertip can't. 'pointer: coarse' asks
+// the browser directly whether the primary input is imprecise (touch)
+// rather than guessing from screen width — a narrow desktop window still
+// has a precise mouse, so width alone would give the wrong answer here.
+const TOLERANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 14 : 6;
 const SPAM_WINDOW_MS = 1500;     // spam = this many clicks...
 const SPAM_CLICK_COUNT = 5;      // ...within this many milliseconds, hit or miss
 
@@ -176,7 +197,7 @@ const ERROR_LABELS = {
   footnote: 'Footnote placement', punctuation: 'Punctuation usage', formatting: 'Bold, italic, or underline misuse',
   font: 'Font mismatch', sizeSmall: 'Font size mismatch (smaller)', sizeBig: 'Font size mismatch (larger)',
   'heading-number': 'Section numbering', listnum: 'List numbering',
-  indent: 'Indentation', table: 'Table error'
+  indent: 'Indentation', table: 'Table error', spelling: 'Spelling error'
 };
 
 /* ============================================================
@@ -355,7 +376,7 @@ function parseDocument(src) {
     while (i < lines.length && !isBlank(lines[i]) && !isTable(lines[i]) && !headingRe.test(lines[i]) && !listRe.test(lines[i])) {
       para.push(lines[i]); i++;
     }
-    blocks.push({ type: 'paragraph', inline: parseInline(para.join(' ')) });
+    blocks.push({ type: 'paragraph', inline: parseInline(para.join('\n')) });
   }
   return blocks;
 }
@@ -397,7 +418,7 @@ function renderInline(nodes, parent) {
       el.classList.add('err-target');
       const id = registerError(n.errorType, n.errorId, el);
       el.dataset.errorId = id;
-      if (n.errorType === 'font') el.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      if (n.errorType === 'font') el.style.fontFamily = "'Times New Roman', Times, serif";
       if (n.errorType === 'sizeSmall') el.style.fontSize = '0.85em'; // -15%
       if (n.errorType === 'sizeBig') el.style.fontSize = '1.15em';   // +15%
     }
@@ -444,6 +465,8 @@ function renderDocument(blocks, container) {
       });
       container.appendChild(wrap);
     } else if (b.type === 'table') {
+      const wrap = document.createElement('div');
+      wrap.className = 'table-wrap';
       const table = document.createElement('table');
       const thead = document.createElement('tr');
       b.header.forEach(c => {
@@ -461,7 +484,8 @@ function renderDocument(blocks, container) {
         });
         table.appendChild(tr);
       });
-      container.appendChild(table);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
     }
   });
 }
@@ -517,6 +541,10 @@ function recomputeOverlay() {
 
 let resizeHandle;
 window.addEventListener('resize', () => {
+  clearTimeout(resizeHandle);
+  resizeHandle = setTimeout(recomputeOverlay, 150);
+});
+window.addEventListener('orientationchange', () => {
   clearTimeout(resizeHandle);
   resizeHandle = setTimeout(recomputeOverlay, 150);
 });
@@ -643,15 +671,23 @@ function loadCompletion(date) {
 // not flip over at UTC midnight while it's still evening for them.
 function getTodayDateString() {
   const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
 }
 
-// Splits a multi-puzzle file on <<PUZZLE:YYYY-MM-DD>> markers into
-// { "2026-09-03": "...markdown for that day...", ... }. A file with no
+// DD-MM-YYYY doesn't sort correctly as plain text (unlike YYYY-MM-DD), so
+// anywhere dates need comparing, convert to this YYYYMMDD form first —
+// display and storage keys stay DD-MM-YYYY everywhere else.
+function dmyToSortKey(dmy) {
+  const [d, m, y] = dmy.split('-');
+  return y + m + d;
+}
+
+// Splits a multi-puzzle file on <<PUZZLE:DD-MM-YYYY>> markers into
+// { "03-09-2026": "...markdown for that day...", ... }. A file with no
 // markers at all is treated as one single puzzle, so an old single-puzzle
 // test file still loads without needing to be rewritten.
 function splitPuzzles(rawText) {
-  const re = /<<PUZZLE:(\d{4}-\d{2}-\d{2})>>/g;
+  const re = /<<PUZZLE:(\d{2}-\d{2}-\d{4})>>/g;
   const matches = [];
   let m;
   while ((m = re.exec(rawText)) !== null) matches.push({ date: m[1], start: m.index, contentStart: m.index + m[0].length });
@@ -667,13 +703,16 @@ function splitPuzzles(rawText) {
 // Exact match wins. Otherwise the most recent date at or before today (so
 // today's file just hasn't been split into a new entry yet still shows the
 // latest available puzzle). Otherwise, everything's in the future — show
-// the earliest one so there's always something to play.
+// the earliest one so there's always something to play. Sorting and the
+// <= comparison both go through dmyToSortKey — plain string comparison on
+// DD-MM-YYYY would pick the wrong puzzle around month/year boundaries.
 function pickPuzzleDate(puzzles, todayStr) {
   const dates = Object.keys(puzzles);
   if (dates.length === 1 && dates[0] === '__single') return '__single';
-  const sorted = dates.slice().sort();
+  const sorted = dates.slice().sort((a, b) => dmyToSortKey(a).localeCompare(dmyToSortKey(b)));
   if (sorted.includes(todayStr)) return todayStr;
-  const past = sorted.filter(d => d <= todayStr);
+  const todayKey = dmyToSortKey(todayStr);
+  const past = sorted.filter(d => dmyToSortKey(d) <= todayKey);
   return past.length ? past[past.length - 1] : sorted[0];
 }
 
@@ -775,8 +814,24 @@ document.getElementById('fileInput').addEventListener('change', e => {
   const reader = new FileReader();
   reader.onload = () => {
     isDailyMode = false; // manual loads are always testing/free-play, never locked
-    currentMarkdown = reader.result;
-    document.getElementById('fileLabel').textContent = file.name;
+    const raw = reader.result;
+    const puzzles = splitPuzzles(raw);
+    const dates = Object.keys(puzzles);
+    if (dates.length === 1 && dates[0] === '__single') {
+      // A plain single-puzzle file, same as before — no date logic involved.
+      currentMarkdown = raw;
+      document.getElementById('fileLabel').textContent = file.name;
+    } else {
+      // A multi-puzzle file loaded by hand: run the same date resolution
+      // the real fetch path uses, so this button doubles as a no-server
+      // way to check which puzzle a given date would pick. Still free-play
+      // (isDailyMode is false), so this never touches the daily lock.
+      const params = new URLSearchParams(window.location.search);
+      const todayStr = params.get('date') || getTodayDateString();
+      const pickedDate = pickPuzzleDate(puzzles, todayStr);
+      currentMarkdown = puzzles[pickedDate];
+      document.getElementById('fileLabel').textContent = `${file.name} — ${pickedDate}`;
+    }
     loadChallenge(currentMarkdown);
   };
   reader.readAsText(file);
@@ -816,6 +871,7 @@ const DEFAULT_MARKDOWN = `<!--
   sizeBig         text 15% larger than its context — renderer applies this automatically
   heading-number  wrong number in a section heading
   indent          list item visually out of alignment with its siblings
+  spelling        a plain misspelled word — self-evident on its own
 
   Defined but not used in this file yet: listnum, table. Type names are
   free text, not a fixed enum — invent new ones as needed. Only font,
@@ -896,7 +952,7 @@ Either party may terminate this arrangement upon thirty (30) days' written notic
 ## 4. Notice Requirements
 
 - Notice must be delivered to the address on file.
-- Notice is deemed received three (3) business days after mailing.
+- Notice is deemed recieved<<ERR:spelling>> three (3) business days after mailing.
 -<<ERR:indent>> Electronic notice is permitted if confirmed in writing.
 - The invoice [[_must be paid promptly_]]<<ERR:formatting>> to avoid penalties.
 `;
