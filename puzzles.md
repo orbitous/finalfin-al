@@ -38,7 +38,7 @@ This **Agreement** is made on 5 September 2026 between:
 
 (1) **KYLIAN LIM SWEE KIN** (NRIC Number: T0542148K) of 27 Temasek Boulevard Singapore 182004 (Email: kylianlimsk@hmail.com)[[:]]<<ERR:punctuation>>  
 
-and asdasdasdasda
+and
 
 (1)<<ERR:heading-number>> **RUPERT WONG E-JIE** (NRIC Number: T0246283B) of 9A Ang Mu Tio Ave, #17-202 Mu Tio View, Singapore 183009 (Email: rwongej@ymail.com);  
 
