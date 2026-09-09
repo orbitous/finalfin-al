@@ -30,7 +30,7 @@
 
 The vendor confirmed delivery for [[Q3]]<<ERR:font>> and pricing remains at S$1,200 per unit[[,]]<<ERR:punctuation>> with the balance due on receipt.
 
-<<PUZZLE:05-09-2026>>
+<<PUZZLE:09-09-2026>>
 
 # SHARE SALE AGREEMENT
 
@@ -53,7 +53,7 @@ B. The Company has an issued and paid up capital of S$650,000<<ERR:sizeSmall>> c
 
 C. The Buyer wishes to purchase, and the Sellers wish to sell, the Sale Shares subject to the terms and conditions of this Agreement.
 
-<<PUZZLE:06-09-2026>>
+<<PUZZLE:19-09-2026>>
 
 # Notice of Amendment — Consulting Agreement
 
