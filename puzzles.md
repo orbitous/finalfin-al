@@ -30,7 +30,7 @@
 
 The vendor confirmed delivery for [[Q3]]<<ERR:font>> and pricing remains at S$1,200 per unit[[,]]<<ERR:punctuation>> with the balance due on receipt.
 
-<<PUZZLE:09-09-2026>>
+<<PUZZLE:28-09-2026>>
 
 # SHARE SALE AGREEMENT
 
@@ -53,7 +53,7 @@ B. The Company has an issued and paid up capital of S$650,000<<ERR:sizeSmall>> c
 
 C. The Buyer wishes to purchase, and the Sellers wish to sell, the Sale Shares subject to the terms and conditions of this Agreement.
 
-<<PUZZLE:19-09-2026>>
+<<PUZZLE:20-11-2026>>
 
 # Notice of Amendment — Consulting Agreement
 
@@ -80,7 +80,7 @@ Either party may terminate this arrangement upon thirty (30) days' written notic
 -<<ERR:indent>> Electronic notice is permitted if confirmed in writing.
 - The invoice [[_must be paid promptly_]]<<ERR:formatting>> to avoid penalties.
 
-<<PUZZLE:20-09-2026>>
+<<PUZZLE:20-12-2026>>
 
 # Client Onboarding Checklist
 
